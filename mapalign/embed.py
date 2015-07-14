@@ -1,32 +1,86 @@
-"""Generate a diffusion map embedding of a 2D dataset
+"""Generate a diffusion map embedding
 """
 
-def compute_embeddings(K, n_components=50, diffusion_time=0):
+
+def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0):
+    """Compute the diffusion maps of a symmetric similarity matrix
+
+        L : matrix N x N
+           L is symmetric and L(x, y) >= 0
+
+        alpha: float [0, 1]
+            Setting alpha=1 and the diffusion operator approximates the
+            Laplace-Beltrami operator. We then recover the Riemannian geometry
+            of the data set regardless of the distribution of the points. To
+            describe the long-term behavior of the point distribution of a
+            system of stochastic differential equations, we can use alpha=0.5
+            and the resulting Markov chain approximates the Fokker-Planck
+            diffusion. With alpha=0, it reduces to the classical graph Laplacian
+            normalization.
+
+        n_components: int
+            The number of diffusion map components to return. Due to the
+            spectrum decay of the eigenvalues, only a few terms are necessary to
+            achieve a given relative accuracy in the sum M^t.
+
+        diffusion_time: float >= 0
+            use the diffusion_time (t) step transition matrix M^t
+
+            t not only serves as a time parameter, but also has the dual role of
+            scale parameter. One of the main ideas of diffusion framework is
+            that running the chain forward in time (taking larger and larger
+            powers of M) reveals the geometric structure of X at larger and
+            larger scales (the diffusion process).
+
+            t = 0 empirically provides a reasonable balance from a clustering
+            perspective. Specifically, the notion of a cluster in the data set
+            is quantified as a region in which the probability of escaping this
+            region is low (within a certain time t).
+
+        References
+        ----------
+
+        [1] https://en.wikipedia.org/wiki/Diffusion_map
+        [2] Coifman, R.R.; S. Lafon. (2006). "Diffusion maps". Applied and
+        Computational Harmonic Analysis 21: 5-30. doi:10.1016/j.acha.2006.04.006
+    """
+
     import numpy as np
     import scipy.sparse as sps
 
     from sklearn.manifold.spectral_embedding_ import _graph_is_connected
 
-    if not _graph_is_connected(K):
+    if not sps.issparse(L):
+        L = sps.csr_matrix(L)
+
+    if not _graph_is_connected(L):
         raise ValueError('Graph is disconnected')
 
-    ndim = K.shape[0]
-    v = np.array(np.sqrt(K.sum(axis=1))).flatten()
-    A = K.copy()
-    del K
-    A.data /= v[A.indices]
-    A = sps.csr_matrix(A.transpose().toarray())
-    A.data /= v[A.indices]
-    A = sps.csr_matrix(A.transpose().toarray())
+    ndim = L.shape[0]
+    L_alpha = L.copy()
+    if alpha > 0:
+        # Step 2
+        d = np.array(L_alpha.sum(axis=1)).flatten()
+        d_alpha = np.power(d, -alpha)
+        L_alpha.data *= d_alpha[L_alpha.indices]
+        L_alpha = sps.csr_matrix(L_alpha.transpose().toarray())
+        L_alpha.data *= d_alpha[L_alpha.indices]
+        L_alpha = sps.csr_matrix(L_alpha.transpose().toarray())
+
+        # Step 3
+        d_alpha = np.power(np.array(L_alpha.sum(axis=1)).flatten(), -1)
+        L_alpha.data *= d_alpha[L_alpha.indices]
+    M = L_alpha
 
     from sklearn.utils.arpack import eigsh, eigs
 
+    # Step 4
     func = eigs
     if n_components is not None:
-        lambdas, vectors = func(A, k=n_components + 1)
+        lambdas, vectors = func(M, k=n_components + 1)
     else:
-        lambdas, vectors = func(A, k=max(2, int(np.sqrt(ndim))))
-    del A
+        lambdas, vectors = func(M, k=max(2, int(np.sqrt(ndim))))
+    del M
 
     if func == eigsh:
         lambdas = lambdas[::-1]
@@ -38,8 +92,9 @@ def compute_embeddings(K, n_components=50, diffusion_time=0):
         lambdas = lambdas[lambda_idx]
         vectors = vectors[:, lambda_idx]
 
+    # Step 5
     psi = vectors/vectors[:, [0]]
-    if diffusion_time <= 0:
+    if diffusion_time == 0:
         lambdas = lambdas[1:] / (1 - lambdas[1:])
     else:
         lambdas = lambdas[1:] ** float(diffusion_time)
@@ -52,10 +107,11 @@ def compute_embeddings(K, n_components=50, diffusion_time=0):
         n_components = n_components_auto
     embedding = psi[:, 1:(n_components + 1)] * lambdas[:n_components][None, :]
 
-    result = dict(lambdas=lambdas, vectors=vectors, embedding=embedding,
+    result = dict(lambdas=lambdas, vectors=vectors,
                   n_components=n_components, diffusion_time=diffusion_time,
                   n_components_auto=n_components_auto)
-    return result
+    return embedding, result
+
 
 """
     from nipype.utils.filemanip import split_filename

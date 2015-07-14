@@ -46,3 +46,16 @@ def compute_nearest_neighbor_graph(K, n_neighbors=50):
                         A1.indices, A1.indptr))
     return K
 
+
+def compute_affinity(X, method='markov', eps=None):
+    import numpy as np
+    from sklearn.metrics import pairwise_distances
+    D = pairwise_distances(X, metric='euclidean')
+    if eps is None:
+        k = int(max(2, np.round(D.shape[0] * 0.01)))
+        eps = 2 * np.median(np.sort(D, axis=0)[k+1, :])**2
+    if method == 'markov':
+        affinity_matrix = np.exp(-(D * D) / eps)
+    elif method == 'cauchy':
+        affinity_matrix = 1./(D * D + eps)
+    return affinity_matrix
