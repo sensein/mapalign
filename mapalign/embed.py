@@ -50,8 +50,9 @@ def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0):
 
     from sklearn.manifold.spectral_embedding_ import _graph_is_connected
 
-    if not sps.issparse(L):
-        L = sps.csr_matrix(L)
+    use_sparse = False
+    if sps.issparse(L):
+        use_sparse = True
 
     if not _graph_is_connected(L):
         raise ValueError('Graph is disconnected')
@@ -62,14 +63,21 @@ def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0):
         # Step 2
         d = np.array(L_alpha.sum(axis=1)).flatten()
         d_alpha = np.power(d, -alpha)
-        L_alpha.data *= d_alpha[L_alpha.indices]
-        L_alpha = sps.csr_matrix(L_alpha.transpose().toarray())
-        L_alpha.data *= d_alpha[L_alpha.indices]
-        L_alpha = sps.csr_matrix(L_alpha.transpose().toarray())
+        if use_sparse:
+            L_alpha.data *= d_alpha[L_alpha.indices]
+            L_alpha = sps.csr_matrix(L_alpha.transpose().toarray())
+            L_alpha.data *= d_alpha[L_alpha.indices]
+            L_alpha = sps.csr_matrix(L_alpha.transpose().toarray())
+        else:
+            L_alpha = d_alpha[:, None] * L_alpha * d_alpha[None, :]
 
-        # Step 3
-        d_alpha = np.power(np.array(L_alpha.sum(axis=1)).flatten(), -1)
+    # Step 3
+    d_alpha = np.power(np.array(L_alpha.sum(axis=1)).flatten(), -1)
+    if use_sparse:
         L_alpha.data *= d_alpha[L_alpha.indices]
+    else:
+        L_alpha = d_alpha[:, None] * L_alpha
+
     M = L_alpha
 
     from sklearn.utils.arpack import eigsh, eigs
@@ -111,15 +119,3 @@ def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0):
                   n_components=n_components, diffusion_time=diffusion_time,
                   n_components_auto=n_components_auto)
     return embedding, result
-
-
-"""
-    from nipype.utils.filemanip import split_filename
-
-    import nibabel as nb
-    img = nb.load(filename)
-    ntimepoints, nsamples = img.data.shape
-
-    K = (np.corrcoef(img.data[:, :img.header.matrix.mims[1].brainModels[2].indexOffset].T) + 1) / 2.
-    del img
-"""
