@@ -94,7 +94,10 @@ def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0,
     if use_sparse:
         L_alpha.data *= d_alpha[L_alpha.indices]
     else:
-        L_alpha = d_alpha[:, None] * L_alpha
+        #L_alpha = d_alpha[:, None] * L_alpha
+        for i in range(0, ndim):
+            for j in range(0, ndim):
+                L_alpha[i,j] = d_alpha[i] * L_alpha[i,j]
 
     M = L_alpha
 
