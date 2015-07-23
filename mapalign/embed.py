@@ -2,7 +2,8 @@
 """
 
 
-def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0):
+def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0,
+                          skip_checks=False):
     """Compute the diffusion maps of a symmetric similarity matrix
 
         L : matrix N x N
@@ -37,6 +38,10 @@ def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0):
             is quantified as a region in which the probability of escaping this
             region is low (within a certain time t).
 
+        skip_checks: bool
+            Avoid expensive pre-checks on input data. The caller has to make
+            sure that input data is valid or results will be undefined.
+
         References
         ----------
 
@@ -54,8 +59,9 @@ def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0):
     if sps.issparse(L):
         use_sparse = True
 
-    if not _graph_is_connected(L):
-        raise ValueError('Graph is disconnected')
+    if not skip_checks:
+        if not _graph_is_connected(L):
+            raise ValueError('Graph is disconnected')
 
     ndim = L.shape[0]
     L_alpha = L.copy()
