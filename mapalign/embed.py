@@ -3,7 +3,7 @@
 
 
 def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0,
-                          skip_checks=False):
+                          skip_checks=False, overwrite=False):
     """Compute the diffusion maps of a symmetric similarity matrix
 
         L : matrix N x N
@@ -42,6 +42,9 @@ def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0,
             Avoid expensive pre-checks on input data. The caller has to make
             sure that input data is valid or results will be undefined.
 
+        overwrite: bool
+            Optimize memory usage by re-using input matrix L as scratch space.
+
         References
         ----------
 
@@ -64,7 +67,11 @@ def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0,
             raise ValueError('Graph is disconnected')
 
     ndim = L.shape[0]
-    L_alpha = L.copy()
+    if overwrite:
+        L_alpha = L
+    else:
+        L_alpha = L.copy()
+
     if alpha > 0:
         # Step 2
         d = np.array(L_alpha.sum(axis=1)).flatten()
