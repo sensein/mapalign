@@ -1,7 +1,6 @@
 """Generate a diffusion map embedding
 """
 
-
 def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0,
                           skip_checks=False, overwrite=False):
     """Compute the diffusion maps of a symmetric similarity matrix
@@ -56,13 +55,12 @@ def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0,
     import numpy as np
     import scipy.sparse as sps
 
-    from sklearn.manifold.spectral_embedding_ import _graph_is_connected
-
     use_sparse = False
     if sps.issparse(L):
         use_sparse = True
 
     if not skip_checks:
+        from sklearn.manifold.spectral_embedding_ import _graph_is_connected
         if not _graph_is_connected(L):
             raise ValueError('Graph is disconnected')
 
@@ -82,26 +80,19 @@ def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0,
             L_alpha.data *= d_alpha[L_alpha.indices]
             L_alpha = sps.csr_matrix(L_alpha.transpose().toarray())
         else:
-            #L_alpha = d_alpha[:, None] * L_alpha * d_alpha[None, :]
-            for i in range(0, ndim):
-                L_alpha[i,i] = d_alpha[i] * L_alpha[i,i] *  d_alpha[i]
-                for j in range(0, i):
-                    L_alpha[i,j] = d_alpha[i] * L_alpha[i,j] * d_alpha[j]
-                    L_alpha[j,i] = L_alpha[i,j]
+            L_alpha = d_alpha[:, np.newaxis] * L_alpha 
+            L_alpha = L_alpha * d_alpha[np.newaxis, :]
 
     # Step 3
     d_alpha = np.power(np.array(L_alpha.sum(axis=1)).flatten(), -1)
     if use_sparse:
         L_alpha.data *= d_alpha[L_alpha.indices]
     else:
-        #L_alpha = d_alpha[:, None] * L_alpha
-        for i in range(0, ndim):
-            for j in range(0, ndim):
-                L_alpha[i,j] = d_alpha[i] * L_alpha[i,j]
+        L_alpha = d_alpha[:, np.newaxis] * L_alpha
 
     M = L_alpha
 
-    from sklearn.utils.arpack import eigsh, eigs
+    from scipy.sparse.linalg import eigsh, eigs
 
     # Step 4
     func = eigs
