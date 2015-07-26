@@ -2,7 +2,8 @@
 """
 
 
-def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0):
+def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0,
+                          skip_checks=False, overwrite=False):
     """Compute the diffusion maps of a symmetric similarity matrix
 
         L : matrix N x N
@@ -37,6 +38,13 @@ def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0):
             is quantified as a region in which the probability of escaping this
             region is low (within a certain time t).
 
+        skip_checks: bool
+            Avoid expensive pre-checks on input data. The caller has to make
+            sure that input data is valid or results will be undefined.
+
+        overwrite: bool
+            Optimize memory usage by re-using input matrix L as scratch space.
+
         References
         ----------
 
@@ -54,11 +62,16 @@ def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0):
     if sps.issparse(L):
         use_sparse = True
 
-    if not _graph_is_connected(L):
-        raise ValueError('Graph is disconnected')
+    if not skip_checks:
+        if not _graph_is_connected(L):
+            raise ValueError('Graph is disconnected')
 
     ndim = L.shape[0]
-    L_alpha = L.copy()
+    if overwrite:
+        L_alpha = L
+    else:
+        L_alpha = L.copy()
+
     if alpha > 0:
         # Step 2
         d = np.array(L_alpha.sum(axis=1)).flatten()
@@ -69,14 +82,22 @@ def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0):
             L_alpha.data *= d_alpha[L_alpha.indices]
             L_alpha = sps.csr_matrix(L_alpha.transpose().toarray())
         else:
-            L_alpha = d_alpha[:, None] * L_alpha * d_alpha[None, :]
+            #L_alpha = d_alpha[:, None] * L_alpha * d_alpha[None, :]
+            for i in range(0, ndim):
+                L_alpha[i,i] = d_alpha[i] * L_alpha[i,i] *  d_alpha[i]
+                for j in range(0, i):
+                    L_alpha[i,j] = d_alpha[i] * L_alpha[i,j] * d_alpha[j]
+                    L_alpha[j,i] = L_alpha[i,j]
 
     # Step 3
     d_alpha = np.power(np.array(L_alpha.sum(axis=1)).flatten(), -1)
     if use_sparse:
         L_alpha.data *= d_alpha[L_alpha.indices]
     else:
-        L_alpha = d_alpha[:, None] * L_alpha
+        #L_alpha = d_alpha[:, None] * L_alpha
+        for i in range(0, ndim):
+            for j in range(0, ndim):
+                L_alpha[i,j] = d_alpha[i] * L_alpha[i,j]
 
     M = L_alpha
 
