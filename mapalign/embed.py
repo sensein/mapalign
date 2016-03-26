@@ -114,7 +114,9 @@ def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0,
 
     # Step 5
     psi = vectors/vectors[:, [0]]
+    diffusion_times = diffusion_time
     if diffusion_time == 0:
+        diffusion_times = np.exp(1. -  np.log(1 - lambdas[1:])/np.log(lambdas[1:]))
         lambdas = lambdas[1:] / (1 - lambdas[1:])
     else:
         lambdas = lambdas[1:] ** float(diffusion_time)
@@ -128,6 +130,6 @@ def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0,
     embedding = psi[:, 1:(n_components + 1)] * lambdas[:n_components][None, :]
 
     result = dict(lambdas=lambdas, vectors=vectors,
-                  n_components=n_components, diffusion_time=diffusion_time,
+                  n_components=n_components, diffusion_time=diffusion_times,
                   n_components_auto=n_components_auto)
     return embedding, result
