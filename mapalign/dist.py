@@ -35,6 +35,71 @@ def distcorr(X, Y):
     dcor = np.sqrt(dcov2_xy)/np.sqrt(np.sqrt(dcov2_xx) * np.sqrt(dcov2_yy))
     return dcor
 
+
+def partial_distcorr(X, Y, Z):
+    """ Compute the partial distance correlation function R(X,Y;Z)
+
+    Reference: http://arxiv.org/abs/1310.2926
+
+    >>> a = [1,2,3,4,5]
+    >>> b = np.array([1,2,9,4,4])
+    >>> c = np.array([9,5,6,7,8])
+    >>> partial_distcorr(a, b, c)
+    0.80829037686547578
+    """
+    X = np.atleast_1d(X)
+    Y = np.atleast_1d(Y)
+    Z = np.atleast_1d(Z)
+    if np.prod(X.shape) == len(X):
+        X = X[:, None]
+    if np.prod(Y.shape) == len(Y):
+        Y = Y[:, None]
+    if np.prod(Z.shape) == len(Z):
+        Z = Z[:, None]
+    X = np.atleast_2d(X)
+    Y = np.atleast_2d(Y)
+    Z = np.atleast_2d(Z)
+    n = X.shape[0]
+    if Y.shape[0] != X.shape[0] or Y.shape[0] != Z.shape[0]:
+        raise ValueError('Number of samples must match')
+    a = squareform(pdist(X))
+    b = squareform(pdist(Y))
+    c = squareform(pdist(Z))
+    # Compute U-centered matrics
+    A = a - a.sum(axis=0)[None, :] / float(n - 2) - \
+        a.sum(axis=1)[:, None]/float(n - 2) + a.sum() / float((n - 1) * (n - 2))
+    B = b - b.sum(axis=0)[None, :] / float(n - 2) - \
+        b.sum(axis=1)[:, None]/float(n - 2) + b.sum() / float((n - 1) * (n - 2))
+    C = c - c.sum(axis=0)[None, :] / float(n - 2) - \
+        c.sum(axis=1)[:, None]/float(n - 2) + c.sum() / float((n - 1) * (n - 2))
+    A.flat[::(n+1)] = 0
+    B.flat[::(n+1)] = 0
+    C.flat[::(n+1)] = 0
+
+    AB = (A * B).sum() #/float(n * (n - 3))
+    AC = (A * C).sum() #/float(n * (n - 3))
+    BC = (B * C).sum() #/float(n * (n - 3))
+    nA = np.sqrt((A * A).sum())
+    nB = np.sqrt((B * B).sum())
+    nC = np.sqrt((C * C).sum())
+
+    Rxy = AB / (nA * nB)
+    Rxz = AC / (nA * nC)
+    Ryz = BC / (nB * nC)
+
+    pdcor = 0
+    if not (np.allclose(Rxz, 1) or np.allclose(Ryz, 1)):
+        pdcor = (Rxy - Rxz * Ryz) / (np.sqrt(1 - Rxz * Rxz) * np.sqrt(1 - Ryz * Ryz))
+    else:
+        PA = A - (AC / (nC * nC)) * C
+        PB = B - (BC / (nC * nC)) * C
+        nPA = np.sqrt((PA * PA).sum())
+        nPB = np.sqrt((PB * PB).sum())
+        if not np.allclose(nPA * nPB, 0):
+            pdcor = (PA * PB).sum() / (nPA * nPB)
+    return pdcor
+
+
 def compute_nearest_neighbor_graph(K, n_neighbors=50):
     idx = np.argsort(K, axis=1)
     col = idx[:, -n_neighbors:].flatten()
