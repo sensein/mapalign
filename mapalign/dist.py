@@ -46,6 +46,18 @@ def partial_distcorr(X, Y, Z):
     >>> c = np.array([9,5,6,7,8])
     >>> partial_distcorr(a, b, c)
     0.80829037686547578
+
+    >>> np.random.seed(0)
+    >>> X = np.random.randn(30, 4)
+    >>> Y  = np.random.randn(30, 4)
+    >>> Z  = np.random.randn(30, 4)
+    >>> partial_distcorr(X, Y, Z)
+    0.00042590779008772691
+
+    >>> X = X + Z
+    >>> Y = Y + Z
+    >>> partial_distcorr(X, Y, Z)
+    0.20195314726364821
     """
     X = np.atleast_1d(X)
     Y = np.atleast_1d(Y)
