@@ -14,7 +14,7 @@ def distcorr(X, Y):
     0.762676242417
     """
     def allsame(x):
-        return x == x[::-1]
+        return list(x) == list(x[::-1])
     if allsame(X) or allsame(Y):
         raise Exception("All elements of one input are equal, cannot divide by zero") 
     X = np.atleast_1d(X)
