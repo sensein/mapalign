@@ -13,6 +13,10 @@ def distcorr(X, Y):
     >>> distcorr(a, b)
     0.762676242417
     """
+    def allsame(x):
+        return x == x[::-1]
+    if allsame(X) or allsame(Y):
+        raise Exception("All elements of one input are equal, cannot divide by zero") 
     X = np.atleast_1d(X)
     Y = np.atleast_1d(Y)
     if np.prod(X.shape) == len(X):
