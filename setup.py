@@ -25,7 +25,8 @@ setup(
 
     # Choose your license
     license='Apache',
-
+    
+    packages=['mapalign'],
     py_modules=["align", "dist", "embed"],
     
     install_requires=['numpy', 'scipy']
