@@ -11,7 +11,7 @@ here = path.abspath(path.dirname(__file__))
 with open(path.join(here, 'README.md')) as f:
     long_description = f.read()
 setup(
-    name='pySTATIS',
+    name='mapalign',
 
     version='0.1.0',
     description='Mapalign',
