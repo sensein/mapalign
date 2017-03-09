@@ -18,10 +18,10 @@ setup(
     long_description=long_description,
 
     # The project's main homepage.
-    url='https://github.com/satra/pySTATIS',
+    url='https://github.com/satra/mapalign',
 
     # Author details
-    author='mfalkiewicz',
+    author='satra',
 
     # Choose your license
     license='Apache',
