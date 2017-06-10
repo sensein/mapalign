@@ -5,7 +5,8 @@ import numpy as np
 
 
 def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0,
-                          skip_checks=False, overwrite=False):
+                          skip_checks=False, overwrite=False,
+                          eigen_solver=None):
     """Compute the diffusion maps of a symmetric similarity matrix
 
         L : matrix N x N
@@ -95,10 +96,12 @@ def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0,
 
     M = L_alpha
 
-    from scipy.sparse.linalg import eigsh, eigs
+    from scipy.sparse.linalg import eigs, eigsh
+    if eigen_solver is None:
+        eigen_solver = eigs
 
     # Step 4
-    func = eigs
+    func = eigen_solver
     if n_components is not None:
         lambdas, vectors = func(M, k=n_components + 1)
     else:
@@ -191,54 +194,248 @@ def compute_diffusion_map_psd(
 
     return _step_5(lambdas, vectors, X.shape[0], n_components, diffusion_time)
 
+has_sklearn = True
+try:
+    import sklearn
+except ImportError:
+    has_sklearn = False
 
-def main():
-    # run a test
+if has_sklearn:
+    from sklearn.base import BaseEstimator
 
-    from numpy.testing import assert_allclose
+    class DiffusionMapEmbedding(BaseEstimator):
+        """Diffusion map embedding for non-linear dimensionality reduction.
 
-    def _nonnegative_corrcoef(X):
-        return (np.corrcoef(X) + 1) / 2.0
+        Forms an affinity matrix given by the specified function and
+        applies spectral decomposition to the corresponding graph laplacian.
+        The resulting transformation is given by the value of the
+        eigenvectors for each data point.
 
-    def _factored_nonnegative_corrcoef(X):
-        X = X - X.mean(axis=1, keepdims=True)
-        U = X / np.linalg.norm(X, axis=1, keepdims=True)
-        U = np.hstack([U, np.ones((U.shape[0], 1))])
-        return U / np.sqrt(2)
+        Note : Laplacian Eigenmaps is the actual algorithm implemented here.
 
-    X = np.random.randn(100, 20)
-    L = _nonnegative_corrcoef(X)
-    U = _factored_nonnegative_corrcoef(X)
+        Read more in the :ref:`User Guide <spectral_embedding>`.
 
-    assert_allclose(L, U.dot(U.T))
+        Parameters
+        ----------
 
-    alpha = 0.2
-    n_components = 7
-    diffusion_time = 2.0
+        diffusion_time : float
+            Determines the scaling of the eigenvalues of the Laplacian
 
-    stuff_a = compute_diffusion_map(L, alpha, n_components, diffusion_time)
-    embedding_a, result_a = stuff_a
+        alpha : float, optional, default: 0.5
+            Setting alpha=1 and the diffusion operator approximates the
+            Laplace-Beltrami operator. We then recover the Riemannian geometry
+            of the data set regardless of the distribution of the points. To
+            describe the long-term behavior of the point distribution of a
+            system of stochastic differential equations, we can use alpha=0.5
+            and the resulting Markov chain approximates the Fokker-Planck
+            diffusion. With alpha=0, it reduces to the classical graph Laplacian
+            normalization.
 
-    stuff_b = compute_diffusion_map_psd(U, alpha, n_components, diffusion_time)
-    embedding_b, result_b = stuff_b
+        n_components : integer, default: 2
+            The dimension of the projected subspace.
 
-    # The embeddings should be the same up to coordinate signs.
-    # In other words, if the x coordinate in one embedding
-    # is interpreted as the -x coordinate in another embedding,
-    # then the embeddings are not really different.
-    assert_allclose(
-            embedding_a / np.sign(embedding_a[0]),
-            embedding_b / np.sign(embedding_b[0]))
+        eigen_solver : {None, 'eigs' or 'eigsh'}
+            The eigenvalue decomposition strategy to use.
 
-    # Same thing for vectors.
-    assert_allclose(
-            result_a['vectors'] / np.sign(result_a['vectors'][0]),
-            result_b['vectors'] / np.sign(result_b['vectors'][0]))
+        random_state : int, RandomState instance or None, optional, default: None
+            A pseudo random number generator used for the initialization of the
+            lobpcg eigenvectors.  If int, random_state is the seed used by the
+            random number generator; If RandomState instance, random_state is the
+            random number generator; If None, the random number generator is the
+            RandomState instance used by `np.random`. Used when ``solver`` ==
+            'amg'.
 
-    # Check the other stuff.
-    for x in 'lambdas', 'diffusion_time', 'n_components', 'n_components_auto':
-        assert_allclose(result_a[x], result_b[x])
+        affinity : string or callable, default : "nearest_neighbors"
+            How to construct the affinity matrix.
+             - 'nearest_neighbors' : construct affinity matrix by knn graph
+             - 'rbf' : construct affinity matrix by rbf kernel
+             - 'markov': construct affinity matrix by Markov kernel
+             - 'cauchy': construct affinity matrix by Cauchy kernel
+             - 'precomputed' : interpret X as precomputed affinity matrix
+             - callable : use passed in function as affinity
+               the function takes in data matrix (n_samples, n_features)
+               and return affinity matrix (n_samples, n_samples).
 
+        gamma : float, optional
+            Kernel coefficient for pairwise distance (rbf, markov, cauchy)
 
-if __name__ == '__main__':
-    main()
+        metric : string, optional
+            Metric for scipy pdist function used to compute pairwise distances
+            for markov and cauchy kernels
+
+        n_neighbors : int, default : max(n_samples/10 , 1)
+            Number of nearest neighbors for nearest_neighbors graph building.
+
+        use_variant : boolean, default : False
+            Use a variant requires L to be dense, positive semidefinite and
+            entrywise positive with decomposition L = dot(X, X.T).
+
+        n_jobs : int, optional (default = 1)
+            The number of parallel jobs to run.
+            If ``-1``, then the number of jobs is set to the number of CPU cores.
+
+        Attributes
+        ----------
+
+        embedding_ : array, shape = (n_samples, n_components)
+            Spectral embedding of the training matrix.
+
+        affinity_matrix_ : array, shape = (n_samples, n_samples)
+            Affinity_matrix constructed from samples or precomputed.
+
+        References
+        ----------
+
+        - Lafon, Stephane, and Ann B. Lee. "Diffusion maps and coarse-graining: A
+          unified framework for dimensionality reduction, graph partitioning, and
+          data set parameterization." Pattern Analysis and Machine Intelligence,
+          IEEE Transactions on 28.9 (2006): 1393-1403.
+          https://doi.org/10.1109/TPAMI.2006.184
+
+        - Coifman, Ronald R., and Stephane Lafon. Diffusion maps. Applied and
+          Computational Harmonic Analysis 21.1 (2006): 5-30.
+          https://doi.org/10.1016/j.acha.2006.04.006
+
+        """
+
+        def __init__(self, diffusion_time=0, alpha=0.5, n_components=2,
+                     affinity="nearest_neighbors", gamma=None,
+                     metric='euclidean', random_state=None, eigen_solver=None,
+                     n_neighbors=None, use_variant=False, n_jobs=1):
+            self.diffusion_time = diffusion_time
+            self.alpha = alpha
+            self.n_components = n_components
+            self.affinity = affinity
+            self.gamma = gamma
+            self.metric = metric
+            self.random_state = random_state
+            self.eigen_solver = eigen_solver
+            self.n_neighbors = n_neighbors
+            self.use_variant = use_variant
+            self.n_jobs = n_jobs
+
+        @property
+        def _pairwise(self):
+            return self.affinity == "precomputed"
+
+        def _get_affinity_matrix(self, X, Y=None):
+            """Calculate the affinity matrix from data
+            Parameters
+            ----------
+            X : array-like, shape (n_samples, n_features)
+                Training vector, where n_samples is the number of samples
+                and n_features is the number of features.
+
+                If affinity is "precomputed"
+                X : array-like, shape (n_samples, n_samples),
+                Interpret X as precomputed adjacency graph computed from
+                samples.
+
+            Returns
+            -------
+            affinity_matrix, shape (n_samples, n_samples)
+            """
+            if self.affinity == 'precomputed':
+                self.affinity_matrix_ = X
+                return self.affinity_matrix_
+            if self.affinity == 'nearest_neighbors':
+                if sparse.issparse(X):
+                    warnings.warn("Nearest neighbors affinity currently does "
+                                  "not support sparse input, falling back to "
+                                  "rbf affinity")
+                    self.affinity = "rbf"
+                else:
+                    self.n_neighbors_ = (self.n_neighbors
+                                         if self.n_neighbors is not None
+                                         else max(int(X.shape[0] / 10), 1))
+                    self.affinity_matrix_ = kneighbors_graph(X, self.n_neighbors_,
+                                                             include_self=True,
+                                                             n_jobs=self.n_jobs)
+                    # currently only symmetric affinity_matrix supported
+                    self.affinity_matrix_ = 0.5 * (self.affinity_matrix_ +
+                                                   self.affinity_matrix_.T)
+                    return self.affinity_matrix_
+            if self.affinity == 'rbf':
+                self.gamma_ = (self.gamma
+                               if self.gamma is not None else 1.0 / X.shape[1])
+                self.affinity_matrix_ = rbf_kernel(X, gamma=self.gamma_)
+                return self.affinity_matrix_
+            if self.affinity in ['markov', 'cauchy']:
+                from .dist import compute_affinity
+                self.affinity_matrix_ = compute_affinity(X,
+                                                         method=self.affinity,
+                                                         eps=self.gamma,
+                                                         metric=self.metric)
+                return self.affinity_matrix_
+            self.affinity_matrix_ = self.affinity(X)
+            return self.affinity_matrix_
+
+        def fit(self, X, y=None):
+            """Fit the model from data in X.
+
+            Parameters
+            ----------
+            X : array-like, shape (n_samples, n_features)
+                Training vector, where n_samples is the number of samples
+                and n_features is the number of features.
+
+                If affinity is "precomputed"
+                X : array-like, shape (n_samples, n_samples),
+                Interpret X as precomputed adjacency graph computed from
+                samples.
+
+            Returns
+            -------
+            self : object
+                Returns the instance itself.
+            """
+
+            from sklearn.utils import check_array, check_random_state
+            X = check_array(X, ensure_min_samples=2, estimator=self)
+
+            random_state = check_random_state(self.random_state)
+            if isinstance(self.affinity, (str,)):
+                if self.affinity not in set(("nearest_neighbors", "rbf",
+                                             "markov", "cauchy",
+                                             "precomputed")):
+                    raise ValueError(("%s is not a valid affinity. Expected "
+                                      "'precomputed', 'rbf', 'nearest_neighbors' "
+                                      "or a callable.") % self.affinity)
+            elif not callable(self.affinity):
+                raise ValueError(("'affinity' is expected to be an affinity "
+                                  "name or a callable. Got: %s") % self.affinity)
+
+            affinity_matrix = self._get_affinity_matrix(X)
+            if self.use_variant:
+                self.embedding_, _ = compute_diffusion_map_psd(affinity_matrix,
+                                                            alpha=self.alpha,
+                                                            n_components=self.n_components,
+                                                            diffusion_time=self.diffusion_time)
+            else:
+                self.embedding_, _ = compute_diffusion_map(affinity_matrix,
+                                                        alpha=self.alpha,
+                                                        n_components=self.n_components,
+                                                        diffusion_time=self.diffusion_time,
+                                                        eigen_solver=self.eigen_solver)
+            return self
+
+        def fit_transform(self, X, y=None):
+            """Fit the model from data in X and transform X.
+
+            Parameters
+            ----------
+            X : array-like, shape (n_samples, n_features)
+                Training vector, where n_samples is the number of samples
+                and n_features is the number of features.
+
+                If affinity is "precomputed"
+                X : array-like, shape (n_samples, n_samples),
+                Interpret X as precomputed adjacency graph computed from
+                samples.
+
+            Returns
+            -------
+            X_new : array-like, shape (n_samples, n_components)
+            """
+            self.fit(X)
+            return self.embedding_

@@ -10,10 +10,14 @@ here = path.abspath(path.dirname(__file__))
 
 with open(path.join(here, 'README.md')) as f:
     long_description = f.read()
+
+with open(path.join(here, 'requirements.txt')) as f:
+    requirements = [val.strip() for val in f.readlines()]
+
 setup(
     name='mapalign',
 
-    version='0.1.0',
+    version='0.2.0',
     description='Mapalign',
     long_description=long_description,
 
@@ -29,5 +33,6 @@ setup(
     packages=['mapalign'],
     py_modules=["align", "dist", "embed"],
     
-    install_requires=['numpy', 'scipy']
+    install_requires=requirements[:-1],
+    tests_require=requirements[-1:]
 )

@@ -1,9 +1,8 @@
-__author__ = 'satra'
-
 import numpy as np
 
 from scipy.spatial.distance import pdist, squareform
 import scipy.sparse as sps
+
 
 def distcorr(X, Y):
     """ Compute the distance correlation function
@@ -128,10 +127,17 @@ def compute_nearest_neighbor_graph(K, n_neighbors=50):
     return K
 
 
-def compute_affinity(X, method='markov', eps=None):
+def compute_affinity(X, method='markov', eps=None, metric='eucldean'):
+    """Compute the similarity or affinity matrix between the samples in X
+
+    :param X: A set of samples with number of rows > 1
+    :param method: 'markov' or 'cauchy' kernel (default: markov)
+    :param eps: scaling factor for kernel
+    :param metric: metric to compute pairwise distances
+    :return: a similarity matrix
+    """
     import numpy as np
-    from sklearn.metrics import pairwise_distances
-    D = pairwise_distances(X, metric='euclidean')
+    D = squareform(pdist(X, metric=metric))
     if eps is None:
         k = int(max(2, np.round(D.shape[0] * 0.01)))
         eps = 2 * np.median(np.sort(D, axis=0)[k+1, :])**2
@@ -139,4 +145,6 @@ def compute_affinity(X, method='markov', eps=None):
         affinity_matrix = np.exp(-(D * D) / eps)
     elif method == 'cauchy':
         affinity_matrix = 1./(D * D + eps)
+    else:
+        raise ValueError("Unknown method: {}".format(method))
     return affinity_matrix
