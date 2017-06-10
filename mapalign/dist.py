@@ -127,7 +127,7 @@ def compute_nearest_neighbor_graph(K, n_neighbors=50):
     return K
 
 
-def compute_affinity(X, method='markov', eps=None, metric='eucldean'):
+def compute_affinity(X, method='markov', eps=None, metric='euclidean'):
     """Compute the similarity or affinity matrix between the samples in X
 
     :param X: A set of samples with number of rows > 1
@@ -135,6 +135,14 @@ def compute_affinity(X, method='markov', eps=None, metric='eucldean'):
     :param eps: scaling factor for kernel
     :param metric: metric to compute pairwise distances
     :return: a similarity matrix
+
+    >>> X = np.array([[1,2,3,4,5], [1,2,9,4,4]])
+    >>> np.allclose(compute_affinity(X, eps=1e3), [[1., 0.96367614], [ 0.96367614, 1.]])
+    True
+
+    >>> X = np.array([[1,2,3,4,5], [1,2,9,4,4]])
+    >>> np.allclose(compute_affinity(X, 'cauchy', eps=1e3), [[0.001,  0.00096432], [ 0.00096432, 0.001 ]])
+    True
     """
     import numpy as np
     D = squareform(pdist(X, metric=metric))
