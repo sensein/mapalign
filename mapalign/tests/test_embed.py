@@ -27,7 +27,7 @@ def test_psd_with_nonpsd():
     diffusion_time = 2.0
 
     stuff_a = compute_diffusion_map(L, alpha, n_components, diffusion_time,
-                                    return_result=True)
+                                    return_result=True, skip_checks=True)
     embedding_a, result_a = stuff_a
 
     stuff_b = compute_diffusion_map_psd(U, alpha, n_components, diffusion_time,
@@ -48,6 +48,19 @@ def test_psd_with_nonpsd():
     # Check the other stuff.
     for x in 'lambdas', 'diffusion_time', 'n_components', 'n_components_auto':
         assert np.allclose(result_a[x], result_b[x])
+
+@mark.skipif(has_sklearn, reason="scikit-learn is installed")
+def test_skip_checks():
+    X = np.random.randn(100, 20)
+    L = _nonnegative_corrcoef(X)
+    U = _factored_nonnegative_corrcoef(X)
+
+    alpha = 0.2
+    n_components = 7
+    diffusion_time = 2.0
+    with raises(ImportError):
+        stuff_a = compute_diffusion_map(L, alpha, n_components, diffusion_time,
+                                        return_result=True)
 
 
 @mark.skipif(not has_sklearn, reason="scikit-learn not installed")
