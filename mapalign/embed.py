@@ -2,6 +2,11 @@
 """
 
 import numpy as np
+has_sklearn = True
+try:
+    import sklearn
+except ImportError:
+    has_sklearn = False
 
 
 def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0,
@@ -64,9 +69,12 @@ def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0,
         use_sparse = True
 
     if not skip_checks:
-        from sklearn.manifold.spectral_embedding_ import _graph_is_connected
-        if not _graph_is_connected(L):
-            raise ValueError('Graph is disconnected')
+        if has_sklearn:
+            from sklearn.manifold.spectral_embedding_ import _graph_is_connected
+            if not _graph_is_connected(L):
+                raise ValueError('Graph is disconnected')
+        else:
+            raise ImportError('Checks require scikit-learn, but not found')
 
     ndim = L.shape[0]
     if overwrite:
@@ -194,11 +202,6 @@ def compute_diffusion_map_psd(
 
     return _step_5(lambdas, vectors, X.shape[0], n_components, diffusion_time)
 
-has_sklearn = True
-try:
-    import sklearn
-except ImportError:
-    has_sklearn = False
 
 if has_sklearn:
     from sklearn.base import BaseEstimator

@@ -3,6 +3,7 @@
 
 import numpy as np
 
+
 def match_coords(C1, C2):
     idx = []
     idxlist = range(C2.shape[0])
@@ -10,15 +11,15 @@ def match_coords(C1, C2):
         idxremain = np.setdiff1d(idxlist, idx)
         idxmatch = np.argsort(np.sum((C2[idxremain, :] - pt1) * (C2[idxremain, :] - pt1), axis=1))[0]
         idx.append(idxremain[idxmatch])
-    #print idxremain
     return idx
+
 
 def get_weight_matrix(Acoord, Bcoord, idx):
     d = np.sqrt(np.sum((Acoord - Bcoord[idx, :]) * (Acoord - Bcoord[idx, :]), axis=1))
     epsilon = max(np.median(d), 0.0001)
-    #print epsilon, np.median(d)
     W = np.diag(np.exp( - (d * d)/epsilon))
     return W
+
 
 def iterative_alignment(embeddings, n_iters=1):
     target = embeddings[-1]
