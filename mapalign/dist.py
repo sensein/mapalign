@@ -9,8 +9,8 @@ def distcorr(X, Y):
 
     >>> a = [1,2,3,4,5]
     >>> b = np.array([1,2,9,4,4])
-    >>> distcorr(a, b)
-    0.762676242417
+    >>> np.allclose(distcorr(a, b), 0.762676242417)
+    True
     """
     def allsame(x):
         return list(x) == list(x[::-1])
@@ -47,20 +47,20 @@ def partial_distcorr(X, Y, Z):
     >>> a = [1,2,3,4,5]
     >>> b = np.array([1,2,9,4,4])
     >>> c = np.array([9,5,6,7,8])
-    >>> partial_distcorr(a, b, c)
-    0.80829037686547578
+    >>> np.allclose(partial_distcorr(a, b, c), 0.80829037686547578)
+    True
 
     >>> np.random.seed(0)
     >>> X = np.random.randn(30, 4)
     >>> Y  = np.random.randn(30, 4)
     >>> Z  = np.random.randn(30, 4)
-    >>> partial_distcorr(X, Y, Z)
-    0.00042590779008772691
+    >>> np.allclose(partial_distcorr(X, Y, Z), 0.00042590779008772691)
+    True
 
     >>> X = X + Z
     >>> Y = Y + Z
-    >>> partial_distcorr(X, Y, Z)
-    0.20195314726364821
+    >>> np.allclose(partial_distcorr(X, Y, Z), 0.20195314726364821)
+    True
     """
     X = np.atleast_1d(X)
     Y = np.atleast_1d(Y)
