@@ -2,7 +2,7 @@
 Installation script for mapalign
 """
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 from os import path
 
@@ -28,9 +28,9 @@ setup(
     author='satra',
 
     # Choose your license
-    license='Apache',
-    
-    packages=['mapalign'],
+    license='Apache License, 2.0',
+    provides=['mapalign'],
+    packages=find_packages(),
     py_modules=["align", "dist", "embed"],
     
     install_requires=requirements[:-1],
