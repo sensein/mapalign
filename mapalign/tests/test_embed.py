@@ -2,7 +2,7 @@ from ..embed import (compute_diffusion_map, compute_diffusion_map_psd,
                      has_sklearn)
 
 import numpy as np
-from pytest import mark
+from pytest import mark, raises
 
 def _nonnegative_corrcoef(X):
     return (np.corrcoef(X) + 1) / 2.0
@@ -76,3 +76,37 @@ def test_sklearn_adapter():
     # then the embeddings are not really different.
     assert np.allclose(embedding_a / np.sign(embedding_a[0]),
                        embedding_b / np.sign(embedding_b[0]))
+
+
+@mark.skipif(not has_sklearn, reason="scikit-learn not installed")
+def test_sklearn_affinity():
+    from ..embed import DiffusionMapEmbedding
+    state = np.random.get_state()
+    np.random.seed(0)
+    X = np.random.randn(100, 20)
+    alpha = 0.2
+    n_components = 7
+    diffusion_time = 2.0
+    with raises(ValueError):
+        embedding = DiffusionMapEmbedding(alpha=alpha,
+                                          n_components=n_components,
+                                          diffusion_time=diffusion_time,
+                                          affinity='crazy',
+                                          use_variant=False).fit(X)
+    embedding = DiffusionMapEmbedding(alpha=alpha,
+                                      n_components=n_components,
+                                      diffusion_time=diffusion_time,
+                                      affinity='markov',
+                                      use_variant=False).fit_transform(X)
+    assert np.allclose(embedding[0],
+                       [-0.00554723, -0.01331971, -0.00336037, -0.00527695,
+                        0.00653953, -0.00028644, -0.00221813])
+    embedding = DiffusionMapEmbedding(alpha=alpha,
+                                      n_components=n_components,
+                                      diffusion_time=diffusion_time,
+                                      affinity='cauchy',
+                                      use_variant=False).fit_transform(X)
+    assert np.allclose(embedding[0],
+                       [-0.00150182, -0.0038662, -0.00033836, 0.00153657,
+                        0.00222419, - 0.00011272, -0.00054614])
+    np.random.set_state(state)
