@@ -26,10 +26,12 @@ def test_psd_with_nonpsd():
     n_components = 7
     diffusion_time = 2.0
 
-    stuff_a = compute_diffusion_map(L, alpha, n_components, diffusion_time)
+    stuff_a = compute_diffusion_map(L, alpha, n_components, diffusion_time,
+                                    return_result=True)
     embedding_a, result_a = stuff_a
 
-    stuff_b = compute_diffusion_map_psd(U, alpha, n_components, diffusion_time)
+    stuff_b = compute_diffusion_map_psd(U, alpha, n_components, diffusion_time,
+                                        return_result=True)
     embedding_b, result_b = stuff_b
 
     # The embeddings should be the same up to coordinate signs.

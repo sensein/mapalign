@@ -11,7 +11,7 @@ except ImportError:
 
 def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0,
                           skip_checks=False, overwrite=False,
-                          eigen_solver=None):
+                          eigen_solver=None, return_result=False):
     """Compute the diffusion maps of a symmetric similarity matrix
 
         L : matrix N x N
@@ -126,10 +126,11 @@ def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0,
         lambdas = lambdas[lambda_idx]
         vectors = vectors[:, lambda_idx]
 
-    return _step_5(lambdas, vectors, ndim, n_components, diffusion_time)
+    return _step_5(lambdas, vectors, ndim, n_components, diffusion_time,
+                   return_result)
 
 
-def _step_5(lambdas, vectors, ndim, n_components, diffusion_time):
+def _step_5(lambdas, vectors, ndim, n_components, diffusion_time, return_result):
     """
     This is a helper function for diffusion map computation.
 
@@ -153,14 +154,17 @@ def _step_5(lambdas, vectors, ndim, n_components, diffusion_time):
         n_components = n_components_auto
     embedding = psi[:, 1:(n_components + 1)] * lambdas[:n_components][None, :]
 
-    result = dict(lambdas=lambdas, vectors=vectors,
-                  n_components=n_components, diffusion_time=diffusion_times,
-                  n_components_auto=n_components_auto)
-    return embedding, result
+    if return_result:
+        result = dict(lambdas=lambdas, vectors=vectors,
+                      n_components=n_components, diffusion_time=diffusion_times,
+                      n_components_auto=n_components_auto)
+        return embedding, result
+    else:
+        return embedding
 
 
 def compute_diffusion_map_psd(
-        X, alpha=0.5, n_components=None, diffusion_time=0):
+        X, alpha=0.5, n_components=None, diffusion_time=0, return_result=False):
     """
     This variant requires L to be dense, positive semidefinite and entrywise
     positive with decomposition L = dot(X, X.T).
@@ -200,7 +204,8 @@ def compute_diffusion_map_psd(
     lambdas = lambdas[lambda_idx]
     vectors = vectors[:, lambda_idx]
 
-    return _step_5(lambdas, vectors, X.shape[0], n_components, diffusion_time)
+    return _step_5(lambdas, vectors, X.shape[0], n_components, diffusion_time,
+                   return_result)
 
 
 if has_sklearn:
@@ -410,12 +415,12 @@ if has_sklearn:
 
             affinity_matrix = self._get_affinity_matrix(X)
             if self.use_variant:
-                self.embedding_, _ = compute_diffusion_map_psd(affinity_matrix,
+                self.embedding_ = compute_diffusion_map_psd(affinity_matrix,
                                                             alpha=self.alpha,
                                                             n_components=self.n_components,
                                                             diffusion_time=self.diffusion_time)
             else:
-                self.embedding_, _ = compute_diffusion_map(affinity_matrix,
+                self.embedding_ = compute_diffusion_map(affinity_matrix,
                                                         alpha=self.alpha,
                                                         n_components=self.n_components,
                                                         diffusion_time=self.diffusion_time,
