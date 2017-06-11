@@ -1,17 +1,16 @@
-__author__ = 'satra'
-
 import numpy as np
 
 from scipy.spatial.distance import pdist, squareform
 import scipy.sparse as sps
+
 
 def distcorr(X, Y):
     """ Compute the distance correlation function
 
     >>> a = [1,2,3,4,5]
     >>> b = np.array([1,2,9,4,4])
-    >>> distcorr(a, b)
-    0.762676242417
+    >>> np.allclose(distcorr(a, b), 0.762676242417)
+    True
     """
     def allsame(x):
         return list(x) == list(x[::-1])
@@ -48,20 +47,20 @@ def partial_distcorr(X, Y, Z):
     >>> a = [1,2,3,4,5]
     >>> b = np.array([1,2,9,4,4])
     >>> c = np.array([9,5,6,7,8])
-    >>> partial_distcorr(a, b, c)
-    0.80829037686547578
+    >>> np.allclose(partial_distcorr(a, b, c), 0.80829037686547578)
+    True
 
     >>> np.random.seed(0)
     >>> X = np.random.randn(30, 4)
     >>> Y  = np.random.randn(30, 4)
     >>> Z  = np.random.randn(30, 4)
-    >>> partial_distcorr(X, Y, Z)
-    0.00042590779008772691
+    >>> np.allclose(partial_distcorr(X, Y, Z), 0.00042590779008772691)
+    True
 
     >>> X = X + Z
     >>> Y = Y + Z
-    >>> partial_distcorr(X, Y, Z)
-    0.20195314726364821
+    >>> np.allclose(partial_distcorr(X, Y, Z), 0.20195314726364821)
+    True
     """
     X = np.atleast_1d(X)
     Y = np.atleast_1d(Y)
@@ -128,10 +127,25 @@ def compute_nearest_neighbor_graph(K, n_neighbors=50):
     return K
 
 
-def compute_affinity(X, method='markov', eps=None):
+def compute_affinity(X, method='markov', eps=None, metric='euclidean'):
+    """Compute the similarity or affinity matrix between the samples in X
+
+    :param X: A set of samples with number of rows > 1
+    :param method: 'markov' or 'cauchy' kernel (default: markov)
+    :param eps: scaling factor for kernel
+    :param metric: metric to compute pairwise distances
+    :return: a similarity matrix
+
+    >>> X = np.array([[1,2,3,4,5], [1,2,9,4,4]])
+    >>> np.allclose(compute_affinity(X, eps=1e3), [[1., 0.96367614], [ 0.96367614, 1.]])
+    True
+
+    >>> X = np.array([[1,2,3,4,5], [1,2,9,4,4]])
+    >>> np.allclose(compute_affinity(X, 'cauchy', eps=1e3), [[0.001,  0.00096432], [ 0.00096432, 0.001 ]])
+    True
+    """
     import numpy as np
-    from sklearn.metrics import pairwise_distances
-    D = pairwise_distances(X, metric='euclidean')
+    D = squareform(pdist(X, metric=metric))
     if eps is None:
         k = int(max(2, np.round(D.shape[0] * 0.01)))
         eps = 2 * np.median(np.sort(D, axis=0)[k+1, :])**2
@@ -139,4 +153,6 @@ def compute_affinity(X, method='markov', eps=None):
         affinity_matrix = np.exp(-(D * D) / eps)
     elif method == 'cauchy':
         affinity_matrix = 1./(D * D + eps)
+    else:
+        raise ValueError("Unknown method: {}".format(method))
     return affinity_matrix
