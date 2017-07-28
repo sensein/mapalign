@@ -22,7 +22,7 @@ def get_weight_matrix(Acoord, Bcoord, idx):
 
 
 def iterative_alignment(embeddings, n_iters=1):
-    target = embeddings[-1]
+    target = embeddings[0]
     realigned = [target]
     xfms = []
     # first pass
