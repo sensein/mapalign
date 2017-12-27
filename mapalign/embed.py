@@ -345,7 +345,6 @@ if has_sklearn:
             """
             if self.affinity == 'precomputed':
                 self.affinity_matrix_ = X
-                return self.affinity_matrix_
             if self.affinity == 'nearest_neighbors':
                 if sparse.issparse(X):
                     warnings.warn("Nearest neighbors affinity currently does "
@@ -362,21 +361,16 @@ if has_sklearn:
                     # currently only symmetric affinity_matrix supported
                     self.affinity_matrix_ = 0.5 * (self.affinity_matrix_ +
                                                    self.affinity_matrix_.T)
-                    return self.affinity_matrix_
             if self.affinity == 'rbf':
                 self.gamma_ = (self.gamma
                                if self.gamma is not None else 1.0 / X.shape[1])
                 self.affinity_matrix_ = rbf_kernel(X, gamma=self.gamma_)
-                return self.affinity_matrix_
             if self.affinity in ['markov', 'cauchy']:
                 from .dist import compute_affinity
                 self.affinity_matrix_ = compute_affinity(X,
                                                          method=self.affinity,
                                                          eps=self.gamma,
                                                          metric=self.metric)
-                return self.affinity_matrix_
-            self.affinity_matrix_ = self.affinity(X)
-            return self.affinity_matrix_
 
         def fit(self, X, y=None):
             """Fit the model from data in X.
@@ -413,14 +407,14 @@ if has_sklearn:
                 raise ValueError(("'affinity' is expected to be an affinity "
                                   "name or a callable. Got: %s") % self.affinity)
 
-            affinity_matrix = self._get_affinity_matrix(X)
+            self._get_affinity_matrix(X)
             if self.use_variant:
-                self.embedding_ = compute_diffusion_map_psd(affinity_matrix,
+                self.embedding_ = compute_diffusion_map_psd(self.affinity_matrix_,
                                                             alpha=self.alpha,
                                                             n_components=self.n_components,
                                                             diffusion_time=self.diffusion_time)
             else:
-                self.embedding_ = compute_diffusion_map(affinity_matrix,
+                self.embedding_ = compute_diffusion_map(self.affinity_matrix_,
                                                         alpha=self.alpha,
                                                         n_components=self.n_components,
                                                         diffusion_time=self.diffusion_time,
