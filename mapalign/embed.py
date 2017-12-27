@@ -2,9 +2,13 @@
 """
 
 import numpy as np
+import scipy.sparse as sps
+
 has_sklearn = True
 try:
     import sklearn
+    from sklearn.neighbors import kneighbors_graph
+    from sklearn.metrics.pairwise import rbf_kernel
 except ImportError:
     has_sklearn = False
 
@@ -346,7 +350,7 @@ if has_sklearn:
             if self.affinity == 'precomputed':
                 self.affinity_matrix_ = X
             if self.affinity == 'nearest_neighbors':
-                if sparse.issparse(X):
+                if sps.issparse(X):
                     warnings.warn("Nearest neighbors affinity currently does "
                                   "not support sparse input, falling back to "
                                   "rbf affinity")
