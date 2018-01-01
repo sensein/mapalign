@@ -127,11 +127,12 @@ def compute_nearest_neighbor_graph(K, n_neighbors=50):
     return K
 
 
-def compute_affinity(X, method='markov', eps=None, metric='euclidean'):
+def compute_affinity(X, method='markov', f_neighbors = 0.01, eps=None, metric='euclidean'):
     """Compute the similarity or affinity matrix between the samples in X
 
     :param X: A set of samples with number of rows > 1
     :param method: 'markov' or 'cauchy' kernel (default: markov)
+    :param f_neighbors: Fraction of nearest neighbors to consider for automatic eps calculation
     :param eps: scaling factor for kernel
     :param metric: metric to compute pairwise distances
     :return: a similarity matrix
@@ -147,8 +148,8 @@ def compute_affinity(X, method='markov', eps=None, metric='euclidean'):
     import numpy as np
     D = squareform(pdist(X, metric=metric))
     if eps is None:
-        k = int(max(2, np.round(D.shape[0] * 0.01)))
-        eps = 2 * np.median(np.sort(D, axis=0)[k+1, :])**2
+        k = int(max(2, np.round(D.shape[0] * f_neighbors)))
+        eps = np.median(np.sort(D, axis=0)[0:k+1, :]**2)
     if method == 'markov':
         affinity_matrix = np.exp(-(D * D) / eps)
     elif method == 'cauchy':
