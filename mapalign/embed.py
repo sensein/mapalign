@@ -81,32 +81,8 @@ def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0,
             raise ImportError('Checks require scikit-learn, but not found')
 
     ndim = L.shape[0]
-    if overwrite:
-        L_alpha = L
-    else:
-        L_alpha = L.copy()
 
-    if alpha > 0:
-        # Step 2
-        d = np.array(L_alpha.sum(axis=1)).flatten()
-        d_alpha = np.power(d, -alpha)
-        if use_sparse:
-            L_alpha.data *= d_alpha[L_alpha.indices]
-            L_alpha = sps.csr_matrix(L_alpha.transpose().toarray())
-            L_alpha.data *= d_alpha[L_alpha.indices]
-            L_alpha = sps.csr_matrix(L_alpha.transpose().toarray())
-        else:
-            L_alpha = d_alpha[:, np.newaxis] * L_alpha 
-            L_alpha = L_alpha * d_alpha[np.newaxis, :]
-
-    # Step 3
-    d_alpha = np.power(np.array(L_alpha.sum(axis=1)).flatten(), -1)
-    if use_sparse:
-        L_alpha.data *= d_alpha[L_alpha.indices]
-    else:
-        L_alpha = d_alpha[:, np.newaxis] * L_alpha
-
-    M = L_alpha
+    M = _compute_markov_matrix(L, use_sparse = use_sparse, alpha = alpha)
 
     from scipy.sparse.linalg import eigs, eigsh
     if eigen_solver is None:
@@ -133,6 +109,37 @@ def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0,
     return _step_5(lambdas, vectors, ndim, n_components, diffusion_time,
                    return_result)
 
+
+def _compute_markov_matrix(A, use_sparse, alpha = 0):
+    """
+    Computes Markov matrix from affinity matrix. Density normalization is optional.
+
+    :param A: Affinity matrix
+    :param alpha: Diffusion operator parameter
+    :return: Transition matrix
+    """
+
+    if alpha > 0:
+        # Step 2
+        d = np.array(A.sum(axis=1)).flatten()
+        d_alpha = np.power(d, -alpha)
+        if use_sparse:
+            A.data *= d_alpha[A.indices]
+            A = sps.csr_matrix(A.transpose().toarray())
+            A.data *= d_alpha[A.indices]
+            A = sps.csr_matrix(A.transpose().toarray())
+        else:
+            A = d_alpha[:, np.newaxis] * A
+            A = A * d_alpha[np.newaxis, :]
+
+    # Step 3
+    d_alpha = np.power(np.array(A.sum(axis=1)).flatten(), -1)
+    if use_sparse:
+        A.data *= d_alpha[A.indices]
+    else:
+        A = d_alpha[:, np.newaxis] * A
+
+    return A
 
 def _step_5(lambdas, vectors, ndim, n_components, diffusion_time, return_result):
     """
