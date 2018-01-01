@@ -100,11 +100,11 @@ def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0,
             L_alpha = L_alpha * d_alpha[np.newaxis, :]
 
     # Step 3
-    d_alpha = np.power(np.array(L_alpha.sum(axis=0)).flatten(), -1)
+    d_alpha = np.power(np.array(L_alpha.sum(axis=1)).flatten(), -1)
     if use_sparse:
         L_alpha.data *= d_alpha[L_alpha.indices]
     else:
-        L_alpha = d_alpha[np.newaxis, :] * L_alpha
+        L_alpha = d_alpha[:, np.newaxis] * L_alpha
 
     M = L_alpha
 
@@ -445,4 +445,3 @@ if has_sklearn:
             """
             self.fit(X)
             return self.embedding_
-
