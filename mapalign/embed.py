@@ -366,22 +366,24 @@ if has_sklearn:
                     self.n_neighbors_ = (self.n_neighbors
                                          if self.n_neighbors is not None
                                          else max(int(X.shape[0] / 10), 1))
-                    self.affinity_matrix_ = kneighbors_graph(X, self.n_neighbors_,
+                    affinity_matrix_ = kneighbors_graph(X, self.n_neighbors_,
                                                              include_self=True,
                                                              n_jobs=self.n_jobs)
                     # currently only symmetric affinity_matrix supported
-                    self.affinity_matrix_ = 0.5 * (self.affinity_matrix_ +
+                    affinity_matrix_ = 0.5 * (self.affinity_matrix_ +
                                                    self.affinity_matrix_.T)
             if self.affinity == 'rbf':
                 self.gamma_ = (self.gamma
                                if self.gamma is not None else 1.0 / X.shape[1])
-                self.affinity_matrix_ = rbf_kernel(X, gamma=self.gamma_)
+                affinity_matrix_ = rbf_kernel(X, gamma=self.gamma_)
             if self.affinity in ['markov', 'cauchy']:
                 from .dist import compute_affinity
-                self.affinity_matrix_ = compute_affinity(X,
+                affinity_matrix_ = compute_affinity(X,
                                                          method=self.affinity,
                                                          eps=self.gamma,
                                                          metric=self.metric)
+
+            return affinity_matrix_
 
         def fit(self, X, y=None):
             """Fit the model from data in X.
@@ -418,7 +420,8 @@ if has_sklearn:
                 raise ValueError(("'affinity' is expected to be an affinity "
                                   "name or a callable. Got: %s") % self.affinity)
 
-            self._get_affinity_matrix(X)
+            self.affinity_ = self._get_affinity_matrix(X)
+
             if self.use_variant:
                 self.embedding_ = compute_diffusion_map_psd(self.affinity_matrix_,
                                                             alpha=self.alpha,
@@ -452,3 +455,72 @@ if has_sklearn:
             """
             self.fit(X)
             return self.embedding_
+
+    class AlternatingDiffusion(DiffusionMapEmbedding):
+        """Alternating diffusion framework that captures common souces of variability acrossdatasets.
+        """
+
+        def _diffuse(self, K, t):
+            """
+            Moves Markov kernel K t steps forward in time.
+
+            :param K: Markov kernel
+            :param t: time
+            :return: kernel moved forward in time
+            """
+
+            return np.power(K, t)
+
+
+        def fit(self, D1, D2, time):
+            """
+
+            :param D1: Dataset 1
+            :param D2: Dataset 2
+            :param time: Time steps for simple diffusion
+            :return: self
+            """
+
+            from sklearn.utils import check_array, check_random_state
+            D1 = check_array(D1, ensure_min_samples=2, estimator=self)
+            D2 = check_array(D2, ensure_min_samples=2, estimator=self)
+
+            random_state = check_random_state(self.random_state)
+            if isinstance(self.affinity, (str,)):
+                if self.affinity not in set(("nearest_neighbors", "rbf",
+                                             "markov", "cauchy",
+                                             "precomputed")):
+                    raise ValueError(("%s is not a valid affinity. Expected "
+                                      "'precomputed', 'rbf', 'nearest_neighbors' "
+                                      "or a callable.") % self.affinity)
+            elif not callable(self.affinity):
+                raise ValueError(("'affinity' is expected to be an affinity "
+                                  "name or a callable. Got: %s") % self.affinity)
+
+            self.affinity_D1_ = self._get_affinity_matrix(D1)
+            self.affinity_D2_ = self._get_affinity_matrix(D2)
+
+            self.Markov_D1_ = _compute_markov_matrix(self.affinity_D1_, use_sparse = False, alpha = self.alpha)
+            self.Markov_D2_ = _compute_markov_matrix(self.affinity_D2_, use_sparse = False, alpha = self.alpha)
+
+            self.Markov_D1_t_ = self._diffuse(self.Markov_D1_, time)
+            self.Markov_D2_t_ = self._diffuse(self.Markov_D2_, time)
+
+            # Create a joint kernel
+
+            self.joint_kernel_ = self.Markov_D1_t_.dot(self.Markov_D2_t_)
+
+            # Final embedding
+
+            self.embedding_ = compute_diffusion_map(self.joint_kernel_, self.alpha,
+                                                    n_components=self.n_components,
+                                                    eigen_solver=self.eigen_solver)
+
+            return self
+
+
+        def fit_transform(self, D1, D2, time):
+
+            self.fit(D1, D2, time)
+            return self.embedding_
+
