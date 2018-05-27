@@ -347,7 +347,7 @@ if has_sklearn:
                 self.affinity_matrix_ = X
                 return self.affinity_matrix_
             if self.affinity == 'nearest_neighbors':
-                if sparse.issparse(X):
+                if sps.issparse(X):
                     warnings.warn("Nearest neighbors affinity currently does "
                                   "not support sparse input, falling back to "
                                   "rbf affinity")
