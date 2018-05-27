@@ -211,6 +211,7 @@ def compute_diffusion_map_psd(
 if has_sklearn:
     from sklearn.base import BaseEstimator
     import scipy.sparse as sps
+    from sklearn.neighbors import kneighbors_graph
 
     class DiffusionMapEmbedding(BaseEstimator):
         """Diffusion map embedding for non-linear dimensionality reduction.
