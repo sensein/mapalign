@@ -17,7 +17,8 @@ with open(path.join(here, 'requirements.txt')) as f:
 setup(
     name='mapalign',
 
-    version='0.2.2',
+    python_requires='>=3.6',
+    version='0.3.0',
     description='Mapalign',
     long_description=long_description,
 
