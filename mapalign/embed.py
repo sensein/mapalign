@@ -2,9 +2,13 @@
 """
 
 import numpy as np
+import scipy.sparse as sps
+
 has_sklearn = True
 try:
     import sklearn
+    from sklearn.neighbors import kneighbors_graph
+    from sklearn.metrics.pairwise import rbf_kernel
 except ImportError:
     has_sklearn = False
 
@@ -77,32 +81,8 @@ def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0,
             raise ImportError('Checks require scikit-learn, but not found')
 
     ndim = L.shape[0]
-    if overwrite:
-        L_alpha = L
-    else:
-        L_alpha = L.copy()
 
-    if alpha > 0:
-        # Step 2
-        d = np.array(L_alpha.sum(axis=1)).flatten()
-        d_alpha = np.power(d, -alpha)
-        if use_sparse:
-            L_alpha.data *= d_alpha[L_alpha.indices]
-            L_alpha = sps.csr_matrix(L_alpha.transpose().toarray())
-            L_alpha.data *= d_alpha[L_alpha.indices]
-            L_alpha = sps.csr_matrix(L_alpha.transpose().toarray())
-        else:
-            L_alpha = d_alpha[:, np.newaxis] * L_alpha 
-            L_alpha = L_alpha * d_alpha[np.newaxis, :]
-
-    # Step 3
-    d_alpha = np.power(np.array(L_alpha.sum(axis=1)).flatten(), -1)
-    if use_sparse:
-        L_alpha.data *= d_alpha[L_alpha.indices]
-    else:
-        L_alpha = d_alpha[:, np.newaxis] * L_alpha
-
-    M = L_alpha
+    M = _compute_markov_matrix(L, use_sparse = use_sparse, alpha = alpha)
 
     from scipy.sparse.linalg import eigs, eigsh
     if eigen_solver is None:
@@ -129,6 +109,37 @@ def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0,
     return _step_5(lambdas, vectors, ndim, n_components, diffusion_time,
                    return_result)
 
+
+def _compute_markov_matrix(A, use_sparse, alpha = 0):
+    """
+    Computes Markov matrix from affinity matrix. Density normalization is optional.
+
+    :param A: Affinity matrix
+    :param alpha: Diffusion operator parameter
+    :return: Transition matrix
+    """
+
+    if alpha > 0:
+        # Step 2
+        d = np.array(A.sum(axis=1)).flatten()
+        d_alpha = np.power(d, -alpha)
+        if use_sparse:
+            A.data *= d_alpha[A.indices]
+            A = sps.csr_matrix(A.transpose().toarray())
+            A.data *= d_alpha[A.indices]
+            A = sps.csr_matrix(A.transpose().toarray())
+        else:
+            A = d_alpha[:, np.newaxis] * A
+            A = A * d_alpha[np.newaxis, :]
+
+    # Step 3
+    d_alpha = np.power(np.array(A.sum(axis=1)).flatten(), -1)
+    if use_sparse:
+        A.data *= d_alpha[A.indices]
+    else:
+        A = d_alpha[:, np.newaxis] * A
+
+    return A
 
 def _step_5(lambdas, vectors, ndim, n_components, diffusion_time, return_result):
     """
@@ -347,7 +358,6 @@ if has_sklearn:
             """
             if self.affinity == 'precomputed':
                 self.affinity_matrix_ = X
-                return self.affinity_matrix_
             if self.affinity == 'nearest_neighbors':
                 if sps.issparse(X):
                     warnings.warn("Nearest neighbors affinity currently does "
@@ -358,27 +368,24 @@ if has_sklearn:
                     self.n_neighbors_ = (self.n_neighbors
                                          if self.n_neighbors is not None
                                          else max(int(X.shape[0] / 10), 1))
-                    self.affinity_matrix_ = kneighbors_graph(X, self.n_neighbors_,
+                    affinity_matrix_ = kneighbors_graph(X, self.n_neighbors_,
                                                              include_self=True,
                                                              n_jobs=self.n_jobs)
                     # currently only symmetric affinity_matrix supported
-                    self.affinity_matrix_ = 0.5 * (self.affinity_matrix_ +
+                    affinity_matrix_ = 0.5 * (self.affinity_matrix_ +
                                                    self.affinity_matrix_.T)
-                    return self.affinity_matrix_
             if self.affinity == 'rbf':
                 self.gamma_ = (self.gamma
                                if self.gamma is not None else 1.0 / X.shape[1])
-                self.affinity_matrix_ = rbf_kernel(X, gamma=self.gamma_)
-                return self.affinity_matrix_
+                affinity_matrix_ = rbf_kernel(X, gamma=self.gamma_)
             if self.affinity in ['markov', 'cauchy']:
                 from .dist import compute_affinity
-                self.affinity_matrix_ = compute_affinity(X,
+                affinity_matrix_ = compute_affinity(X,
                                                          method=self.affinity,
                                                          eps=self.gamma,
                                                          metric=self.metric)
-                return self.affinity_matrix_
-            self.affinity_matrix_ = self.affinity(X)
-            return self.affinity_matrix_
+
+            return affinity_matrix_
 
         def fit(self, X, y=None):
             """Fit the model from data in X.
@@ -415,14 +422,15 @@ if has_sklearn:
                 raise ValueError(("'affinity' is expected to be an affinity "
                                   "name or a callable. Got: %s") % self.affinity)
 
-            affinity_matrix = self._get_affinity_matrix(X)
+            self.affinity_ = self._get_affinity_matrix(X)
+
             if self.use_variant:
-                self.embedding_ = compute_diffusion_map_psd(affinity_matrix,
+                self.embedding_ = compute_diffusion_map_psd(self.affinity_matrix_,
                                                             alpha=self.alpha,
                                                             n_components=self.n_components,
                                                             diffusion_time=self.diffusion_time)
             else:
-                self.embedding_ = compute_diffusion_map(affinity_matrix,
+                self.embedding_ = compute_diffusion_map(self.affinity_matrix_,
                                                         alpha=self.alpha,
                                                         n_components=self.n_components,
                                                         diffusion_time=self.diffusion_time,
@@ -449,3 +457,72 @@ if has_sklearn:
             """
             self.fit(X)
             return self.embedding_
+
+    class AlternatingDiffusion(DiffusionMapEmbedding):
+        """Alternating diffusion framework that captures common souces of variability acrossdatasets.
+        """
+
+        def _diffuse(self, K, t):
+            """
+            Moves Markov kernel K t steps forward in time.
+
+            :param K: Markov kernel
+            :param t: time
+            :return: kernel moved forward in time
+            """
+
+            return np.power(K, t)
+
+
+        def fit(self, D1, D2, time):
+            """
+
+            :param D1: Dataset 1
+            :param D2: Dataset 2
+            :param time: Time steps for simple diffusion
+            :return: self
+            """
+
+            from sklearn.utils import check_array, check_random_state
+            D1 = check_array(D1, ensure_min_samples=2, estimator=self)
+            D2 = check_array(D2, ensure_min_samples=2, estimator=self)
+
+            random_state = check_random_state(self.random_state)
+            if isinstance(self.affinity, (str,)):
+                if self.affinity not in set(("nearest_neighbors", "rbf",
+                                             "markov", "cauchy",
+                                             "precomputed")):
+                    raise ValueError(("%s is not a valid affinity. Expected "
+                                      "'precomputed', 'rbf', 'nearest_neighbors' "
+                                      "or a callable.") % self.affinity)
+            elif not callable(self.affinity):
+                raise ValueError(("'affinity' is expected to be an affinity "
+                                  "name or a callable. Got: %s") % self.affinity)
+
+            self.affinity_D1_ = self._get_affinity_matrix(D1)
+            self.affinity_D2_ = self._get_affinity_matrix(D2)
+
+            self.Markov_D1_ = _compute_markov_matrix(self.affinity_D1_, use_sparse = False, alpha = self.alpha)
+            self.Markov_D2_ = _compute_markov_matrix(self.affinity_D2_, use_sparse = False, alpha = self.alpha)
+
+            self.Markov_D1_t_ = self._diffuse(self.Markov_D1_, time)
+            self.Markov_D2_t_ = self._diffuse(self.Markov_D2_, time)
+
+            # Create a joint kernel
+
+            self.joint_kernel_ = self.Markov_D1_t_.dot(self.Markov_D2_t_)
+
+            # Final embedding
+
+            self.embedding_ = compute_diffusion_map(self.joint_kernel_, self.alpha,
+                                                    n_components=self.n_components,
+                                                    eigen_solver=self.eigen_solver)
+
+            return self
+
+
+        def fit_transform(self, D1, D2, time):
+
+            self.fit(D1, D2, time)
+            return self.embedding_
+
