@@ -141,7 +141,7 @@ def _step_5(lambdas, vectors, ndim, n_components, diffusion_time, return_result)
     psi = vectors/vectors[:, [0]]
     diffusion_times = diffusion_time
     if diffusion_time == 0:
-        diffusion_times = np.exp(1. -  np.log(1 - lambdas[1:])/np.log(lambdas[1:]))
+        diffusion_times = 1. -  np.log(1 - lambdas[1:])/np.log(lambdas[1:])
         lambdas = lambdas[1:] / (1 - lambdas[1:])
     else:
         lambdas = lambdas[1:] ** float(diffusion_time)
