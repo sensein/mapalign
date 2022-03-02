@@ -1,3 +1,4 @@
 numpy>=1.9
 scipy>=0.18
 pytest>=3.0
+sklearn>=1.0

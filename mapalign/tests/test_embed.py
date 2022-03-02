@@ -1,5 +1,4 @@
-from ..embed import (compute_diffusion_map, compute_diffusion_map_psd,
-                     has_sklearn)
+from ..embed import (compute_diffusion_map, compute_diffusion_map_psd)
 
 import numpy as np
 from pytest import mark, raises
@@ -49,7 +48,6 @@ def test_psd_with_nonpsd():
     for x in 'lambdas', 'diffusion_time', 'n_components', 'n_components_auto':
         assert np.allclose(result_a[x], result_b[x])
 
-@mark.skipif(has_sklearn, reason="scikit-learn is installed")
 def test_skip_checks():
     X = np.random.randn(100, 20)
     L = _nonnegative_corrcoef(X)
@@ -63,7 +61,6 @@ def test_skip_checks():
                                         return_result=True)
 
 
-@mark.skipif(not has_sklearn, reason="scikit-learn not installed")
 def test_sklearn_adapter():
     from ..embed import DiffusionMapEmbedding
     X = np.random.randn(100, 20)
@@ -93,7 +90,6 @@ def test_sklearn_adapter():
                        embedding_b / np.sign(embedding_b[0]))
 
 
-@mark.skipif(not has_sklearn, reason="scikit-learn not installed")
 def test_sklearn_affinity():
     from ..embed import DiffusionMapEmbedding
     state = np.random.get_state()
