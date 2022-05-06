@@ -78,7 +78,7 @@ def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0,
 
     if alpha > 0:
         # Step 2
-        d = np.array(L_alpha.sum(axis=1)).flatten()
+        d = np.array(L_alpha.sum(axis=1))
         d_alpha = np.power(d, -alpha)
         if use_sparse:
             L_alpha.data *= d_alpha[L_alpha.indices]
@@ -90,7 +90,7 @@ def compute_diffusion_map(L, alpha=0.5, n_components=None, diffusion_time=0,
             L_alpha = L_alpha * d_alpha[np.newaxis, :]
 
     # Step 3
-    d_alpha = np.power(np.array(L_alpha.sum(axis=1)).flatten(), -1)
+    d_alpha = np.power(np.array(L_alpha.sum(axis=1)), -1)
     if use_sparse:
         L_alpha.data *= d_alpha[L_alpha.indices]
     else:
